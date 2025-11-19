@@ -1,6 +1,10 @@
 package zaguansdk
 
-import "context"
+import (
+	"context"
+
+	"github.com/ZaguanLabs/zaguan-sdk-go/sdk/internal"
+)
 
 // ModelCapabilities represents the capabilities of a specific model.
 //
@@ -91,8 +95,49 @@ type CapabilitiesResponse struct {
 func (c *Client) GetCapabilities(ctx context.Context, opts *RequestOptions) ([]ModelCapabilities, error) {
 	c.log(ctx, LogLevelDebug, "getting model capabilities")
 
-	// TODO: Implement HTTP request
-	return nil, nil
+	// Build request config
+	reqCfg := internal.RequestConfig{
+		Method: "GET",
+		Path:   "/v1/capabilities",
+	}
+
+	// Apply request options
+	if opts != nil {
+		if opts.Timeout > 0 {
+			reqCfg.Timeout = opts.Timeout
+		}
+		if opts.RequestID != "" {
+			reqCfg.RequestID = opts.RequestID
+		}
+		if opts.Headers != nil {
+			reqCfg.Headers = opts.Headers
+		}
+	} else if c.timeout > 0 {
+		reqCfg.Timeout = c.timeout
+	}
+
+	// Execute request
+	var resp CapabilitiesResponse
+	if err := c.internalHTTP.DoJSON(ctx, reqCfg, &resp); err != nil {
+		c.log(ctx, LogLevelError, "get capabilities request failed", "error", err)
+		return nil, err
+	}
+
+	// Handle both response formats (map or array)
+	var capabilities []ModelCapabilities
+	if len(resp.Models) > 0 {
+		capabilities = resp.Models
+	} else if len(resp.Capabilities) > 0 {
+		// Convert map to slice
+		capabilities = make([]ModelCapabilities, 0, len(resp.Capabilities))
+		for _, cap := range resp.Capabilities {
+			capabilities = append(capabilities, cap)
+		}
+	}
+
+	c.log(ctx, LogLevelDebug, "get capabilities request succeeded", "count", len(capabilities))
+
+	return capabilities, nil
 }
 
 // GetModelCapabilities retrieves capability information for a specific model.

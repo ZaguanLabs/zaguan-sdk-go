@@ -244,7 +244,7 @@ func parseRateLimitError(base *APIError, resp *http.Response) error {
 
 	// Try to get retry-after from header
 	if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
-		fmt.Sscanf(retryAfter, "%d", &err.RetryAfter)
+		_, _ = fmt.Sscanf(retryAfter, "%d", &err.RetryAfter) // Ignore parse error, will use default
 	}
 
 	// Also check details

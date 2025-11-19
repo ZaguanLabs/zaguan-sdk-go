@@ -1,6 +1,10 @@
 package zaguansdk
 
-import "context"
+import (
+	"context"
+
+	"github.com/ZaguanLabs/zaguan-sdk-go/sdk/internal"
+)
 
 // Model represents a model available in Zaguan CoreX.
 //
@@ -73,8 +77,37 @@ type ModelsResponse struct {
 func (c *Client) ListModels(ctx context.Context, opts *RequestOptions) ([]Model, error) {
 	c.log(ctx, LogLevelDebug, "listing models")
 
-	// TODO: Implement HTTP request
-	return nil, nil
+	// Build request config
+	reqCfg := internal.RequestConfig{
+		Method: "GET",
+		Path:   "/v1/models",
+	}
+
+	// Apply request options
+	if opts != nil {
+		if opts.Timeout > 0 {
+			reqCfg.Timeout = opts.Timeout
+		}
+		if opts.RequestID != "" {
+			reqCfg.RequestID = opts.RequestID
+		}
+		if opts.Headers != nil {
+			reqCfg.Headers = opts.Headers
+		}
+	} else if c.timeout > 0 {
+		reqCfg.Timeout = c.timeout
+	}
+
+	// Execute request
+	var resp ModelsResponse
+	if err := c.internalHTTP.DoJSON(ctx, reqCfg, &resp); err != nil {
+		c.log(ctx, LogLevelError, "list models request failed", "error", err)
+		return nil, err
+	}
+
+	c.log(ctx, LogLevelDebug, "list models request succeeded", "count", len(resp.Data))
+
+	return resp.Data, nil
 }
 
 // GetModel retrieves information about a specific model.
@@ -83,10 +116,44 @@ func (c *Client) ListModels(ctx context.Context, opts *RequestOptions) ([]Model,
 //
 //	model, err := client.GetModel(ctx, "openai/gpt-4o", nil)
 func (c *Client) GetModel(ctx context.Context, modelID string, opts *RequestOptions) (*Model, error) {
+	// Validate model ID
+	if err := validateModelID(modelID); err != nil {
+		return nil, err
+	}
+
 	c.log(ctx, LogLevelDebug, "getting model", "model_id", modelID)
 
-	// TODO: Implement HTTP request
-	return nil, nil
+	// Build request config
+	reqCfg := internal.RequestConfig{
+		Method: "GET",
+		Path:   "/v1/models/" + modelID,
+	}
+
+	// Apply request options
+	if opts != nil {
+		if opts.Timeout > 0 {
+			reqCfg.Timeout = opts.Timeout
+		}
+		if opts.RequestID != "" {
+			reqCfg.RequestID = opts.RequestID
+		}
+		if opts.Headers != nil {
+			reqCfg.Headers = opts.Headers
+		}
+	} else if c.timeout > 0 {
+		reqCfg.Timeout = c.timeout
+	}
+
+	// Execute request
+	var model Model
+	if err := c.internalHTTP.DoJSON(ctx, reqCfg, &model); err != nil {
+		c.log(ctx, LogLevelError, "get model request failed", "error", err)
+		return nil, err
+	}
+
+	c.log(ctx, LogLevelDebug, "get model request succeeded", "model_id", model.ID)
+
+	return &model, nil
 }
 
 // DeleteModel deletes a fine-tuned model (if supported).
@@ -95,8 +162,48 @@ func (c *Client) GetModel(ctx context.Context, modelID string, opts *RequestOpti
 //
 //	err := client.DeleteModel(ctx, "ft:gpt-3.5-turbo:org:model:id", nil)
 func (c *Client) DeleteModel(ctx context.Context, modelID string, opts *RequestOptions) error {
+	// Validate model ID
+	if err := validateModelID(modelID); err != nil {
+		return err
+	}
+
 	c.log(ctx, LogLevelDebug, "deleting model", "model_id", modelID)
 
-	// TODO: Implement HTTP request
+	// Build request config
+	reqCfg := internal.RequestConfig{
+		Method: "DELETE",
+		Path:   "/v1/models/" + modelID,
+	}
+
+	// Apply request options
+	if opts != nil {
+		if opts.Timeout > 0 {
+			reqCfg.Timeout = opts.Timeout
+		}
+		if opts.RequestID != "" {
+			reqCfg.RequestID = opts.RequestID
+		}
+		if opts.Headers != nil {
+			reqCfg.Headers = opts.Headers
+		}
+	} else if c.timeout > 0 {
+		reqCfg.Timeout = c.timeout
+	}
+
+	// Execute request (no response body expected)
+	resp, err := c.internalHTTP.Do(ctx, reqCfg)
+	if err != nil {
+		c.log(ctx, LogLevelError, "delete model request failed", "error", err)
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Check for error status codes
+	if resp.StatusCode >= 400 {
+		return internal.ParseErrorResponse(resp)
+	}
+
+	c.log(ctx, LogLevelDebug, "delete model request succeeded", "model_id", modelID)
+
 	return nil
 }

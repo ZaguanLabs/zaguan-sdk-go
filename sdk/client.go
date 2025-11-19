@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/ZaguanLabs/zaguan-sdk-go/sdk/internal"
 )
 
 // Config holds the configuration for the Zaguan SDK client.
@@ -45,11 +47,12 @@ type Config struct {
 // A Client is safe for concurrent use by multiple goroutines.
 // You should create a single Client and reuse it throughout your application.
 type Client struct {
-	baseURL    string
-	apiKey     string
-	httpClient *http.Client
-	timeout    time.Duration
-	logger     Logger
+	baseURL      string
+	apiKey       string
+	httpClient   *http.Client
+	internalHTTP *internal.HTTPClient
+	timeout      time.Duration
+	logger       Logger
 }
 
 // NewClient creates a new Zaguan SDK client with the provided configuration.
@@ -63,12 +66,9 @@ type Client struct {
 //		APIKey:  "your-api-key",
 //	})
 func NewClient(cfg Config) *Client {
-	// Validate required fields
-	if cfg.BaseURL == "" {
-		panic("zaguansdk: BaseURL is required")
-	}
-	if cfg.APIKey == "" {
-		panic("zaguansdk: APIKey is required")
+	// Validate configuration
+	if err := validateConfig(&cfg); err != nil {
+		panic(fmt.Sprintf("zaguansdk: invalid configuration: %v", err))
 	}
 
 	// Use default HTTP client if none provided
@@ -80,27 +80,22 @@ func NewClient(cfg Config) *Client {
 	// Trim trailing slash from base URL for consistency
 	baseURL := strings.TrimRight(cfg.BaseURL, "/")
 
+	// Create internal HTTP client
+	internalHTTP := internal.NewHTTPClient(httpClient, baseURL, cfg.APIKey, Version)
+
 	return &Client{
-		baseURL:    baseURL,
-		apiKey:     cfg.APIKey,
-		httpClient: httpClient,
-		timeout:    cfg.Timeout,
-		logger:     cfg.Logger,
+		baseURL:      baseURL,
+		apiKey:       cfg.APIKey,
+		httpClient:   httpClient,
+		internalHTTP: internalHTTP,
+		timeout:      cfg.Timeout,
+		logger:       cfg.Logger,
 	}
 }
 
 // BaseURL returns the base URL configured for this client.
 func (c *Client) BaseURL() string {
 	return c.baseURL
-}
-
-// buildURL constructs a full URL from the base URL and path.
-func (c *Client) buildURL(path string) string {
-	// Ensure path starts with /
-	if !strings.HasPrefix(path, "/") {
-		path = "/" + path
-	}
-	return c.baseURL + path
 }
 
 // log logs a message if a logger is configured.
@@ -163,6 +158,11 @@ func (l LogLevel) String() string {
 //		},
 //	}, nil)
 func (c *Client) Chat(ctx context.Context, req ChatRequest, opts *RequestOptions) (*ChatResponse, error) {
+	// Validate request
+	if err := validateChatRequest(&req); err != nil {
+		return nil, err
+	}
+
 	// Ensure stream is false for non-streaming
 	req.Stream = false
 
@@ -170,7 +170,101 @@ func (c *Client) Chat(ctx context.Context, req ChatRequest, opts *RequestOptions
 		"model", req.Model,
 		"message_count", len(req.Messages))
 
-	// TODO: Implement HTTP request
-	// This will be implemented using the internal HTTP client
-	return nil, fmt.Errorf("not yet implemented")
+	// Build request config
+	reqCfg := internal.RequestConfig{
+		Method: "POST",
+		Path:   "/v1/chat/completions",
+		Body:   req,
+	}
+
+	// Apply request options
+	if opts != nil {
+		if opts.Timeout > 0 {
+			reqCfg.Timeout = opts.Timeout
+		}
+		if opts.RequestID != "" {
+			reqCfg.RequestID = opts.RequestID
+		}
+		if opts.Headers != nil {
+			reqCfg.Headers = opts.Headers
+		}
+	} else if c.timeout > 0 {
+		reqCfg.Timeout = c.timeout
+	}
+
+	// Execute request
+	var resp ChatResponse
+	if err := c.internalHTTP.DoJSON(ctx, reqCfg, &resp); err != nil {
+		c.log(ctx, LogLevelError, "chat completion request failed", "error", err)
+		return nil, err
+	}
+
+	c.log(ctx, LogLevelDebug, "chat completion request succeeded",
+		"response_id", resp.ID,
+		"model", resp.Model)
+
+	return &resp, nil
+}
+
+// Messages sends a request to Anthropic's native Messages API.
+//
+// This method supports all Anthropic Messages API parameters including extended thinking.
+// For streaming responses, use MessagesStream instead.
+//
+// Example:
+//
+//	resp, err := client.Messages(ctx, zaguansdk.MessagesRequest{
+//		Model: "anthropic/claude-3-5-sonnet-20241022",
+//		MaxTokens: 1024,
+//		Messages: []zaguansdk.AnthropicMessage{
+//			{Role: "user", Content: "Hello!"},
+//		},
+//	}, nil)
+func (c *Client) Messages(ctx context.Context, req MessagesRequest, opts *RequestOptions) (*MessagesResponse, error) {
+	// Validate request
+	if err := validateMessagesRequest(&req); err != nil {
+		return nil, err
+	}
+
+	// Ensure stream is false for non-streaming
+	req.Stream = false
+
+	c.log(ctx, LogLevelDebug, "sending messages request",
+		"model", req.Model,
+		"message_count", len(req.Messages))
+
+	// Build request config
+	reqCfg := internal.RequestConfig{
+		Method: "POST",
+		Path:   "/v1/messages",
+		Body:   req,
+	}
+
+	// Apply request options
+	if opts != nil {
+		if opts.Timeout > 0 {
+			reqCfg.Timeout = opts.Timeout
+		}
+		if opts.RequestID != "" {
+			reqCfg.RequestID = opts.RequestID
+		}
+		if opts.Headers != nil {
+			reqCfg.Headers = opts.Headers
+		}
+	} else if c.timeout > 0 {
+		reqCfg.Timeout = c.timeout
+	}
+
+	// Execute request
+	var resp MessagesResponse
+	if err := c.internalHTTP.DoJSON(ctx, reqCfg, &resp); err != nil {
+		c.log(ctx, LogLevelError, "messages request failed", "error", err)
+		return nil, err
+	}
+
+	c.log(ctx, LogLevelDebug, "messages request succeeded",
+		"response_id", resp.ID,
+		"model", resp.Model)
+
+	return &resp, nil
 }

@@ -2,7 +2,11 @@ package zaguansdk
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
+
+	"github.com/ZaguanLabs/zaguan-sdk-go/sdk/internal"
 )
 
 // CreditsBalance represents the current credit balance and tier information.
@@ -53,8 +57,39 @@ type CreditsBalance struct {
 func (c *Client) GetCreditsBalance(ctx context.Context, opts *RequestOptions) (*CreditsBalance, error) {
 	c.log(ctx, LogLevelDebug, "getting credits balance")
 
-	// TODO: Implement HTTP request
-	return nil, nil
+	// Build request config
+	reqCfg := internal.RequestConfig{
+		Method: "GET",
+		Path:   "/v1/credits/balance",
+	}
+
+	// Apply request options
+	if opts != nil {
+		if opts.Timeout > 0 {
+			reqCfg.Timeout = opts.Timeout
+		}
+		if opts.RequestID != "" {
+			reqCfg.RequestID = opts.RequestID
+		}
+		if opts.Headers != nil {
+			reqCfg.Headers = opts.Headers
+		}
+	} else if c.timeout > 0 {
+		reqCfg.Timeout = c.timeout
+	}
+
+	// Execute request
+	var balance CreditsBalance
+	if err := c.internalHTTP.DoJSON(ctx, reqCfg, &balance); err != nil {
+		c.log(ctx, LogLevelError, "get credits balance request failed", "error", err)
+		return nil, err
+	}
+
+	c.log(ctx, LogLevelDebug, "get credits balance request succeeded",
+		"remaining", balance.CreditsRemaining,
+		"tier", balance.Tier)
+
+	return &balance, nil
 }
 
 // CreditsHistoryEntry represents a single credit usage entry.
@@ -168,8 +203,68 @@ type CreditsHistoryOptions struct {
 func (c *Client) GetCreditsHistory(ctx context.Context, historyOpts *CreditsHistoryOptions, opts *RequestOptions) (*CreditsHistoryResponse, error) {
 	c.log(ctx, LogLevelDebug, "getting credits history")
 
-	// TODO: Implement HTTP request with query parameters
-	return nil, nil
+	// Build request config
+	reqCfg := internal.RequestConfig{
+		Method:      "GET",
+		Path:        "/v1/credits/history",
+		QueryParams: make(map[string]string),
+	}
+
+	// Add query parameters from history options
+	if historyOpts != nil {
+		if historyOpts.Limit > 0 {
+			reqCfg.QueryParams["limit"] = fmt.Sprintf("%d", historyOpts.Limit)
+		}
+		if historyOpts.Cursor != "" {
+			reqCfg.QueryParams["cursor"] = historyOpts.Cursor
+		}
+		if historyOpts.StartDate != "" {
+			reqCfg.QueryParams["start_date"] = historyOpts.StartDate
+		}
+		if historyOpts.EndDate != "" {
+			reqCfg.QueryParams["end_date"] = historyOpts.EndDate
+		}
+		if historyOpts.Model != "" {
+			reqCfg.QueryParams["model"] = historyOpts.Model
+		}
+		if historyOpts.Provider != "" {
+			reqCfg.QueryParams["provider"] = historyOpts.Provider
+		}
+		if historyOpts.Band != "" {
+			reqCfg.QueryParams["band"] = historyOpts.Band
+		}
+		if historyOpts.Status != "" {
+			reqCfg.QueryParams["status"] = historyOpts.Status
+		}
+	}
+
+	// Apply request options
+	if opts != nil {
+		if opts.Timeout > 0 {
+			reqCfg.Timeout = opts.Timeout
+		}
+		if opts.RequestID != "" {
+			reqCfg.RequestID = opts.RequestID
+		}
+		if opts.Headers != nil {
+			reqCfg.Headers = opts.Headers
+		}
+	} else if c.timeout > 0 {
+		reqCfg.Timeout = c.timeout
+	}
+
+	// Execute request
+	var history CreditsHistoryResponse
+	if err := c.internalHTTP.DoJSON(ctx, reqCfg, &history); err != nil {
+		c.log(ctx, LogLevelError, "get credits history request failed", "error", err)
+		return nil, err
+	}
+
+	c.log(ctx, LogLevelDebug, "get credits history request succeeded",
+		"count", len(history.Entries),
+		"total", history.Total)
+
+	return &history, nil
 }
 
 // CreditsStats represents aggregated credit statistics.
@@ -316,8 +411,56 @@ type CreditsStatsOptions struct {
 func (c *Client) GetCreditsStats(ctx context.Context, statsOpts *CreditsStatsOptions, opts *RequestOptions) (*CreditsStats, error) {
 	c.log(ctx, LogLevelDebug, "getting credits stats")
 
-	// TODO: Implement HTTP request with query parameters
-	return nil, nil
+	// Build request config
+	reqCfg := internal.RequestConfig{
+		Method:      "GET",
+		Path:        "/v1/credits/stats",
+		QueryParams: make(map[string]string),
+	}
+
+	// Add query parameters from stats options
+	if statsOpts != nil {
+		if statsOpts.Period != "" {
+			reqCfg.QueryParams["period"] = statsOpts.Period
+		}
+		if statsOpts.StartDate != "" {
+			reqCfg.QueryParams["start_date"] = statsOpts.StartDate
+		}
+		if statsOpts.EndDate != "" {
+			reqCfg.QueryParams["end_date"] = statsOpts.EndDate
+		}
+		if len(statsOpts.GroupBy) > 0 {
+			reqCfg.QueryParams["group_by"] = strings.Join(statsOpts.GroupBy, ",")
+		}
+	}
+
+	// Apply request options
+	if opts != nil {
+		if opts.Timeout > 0 {
+			reqCfg.Timeout = opts.Timeout
+		}
+		if opts.RequestID != "" {
+			reqCfg.RequestID = opts.RequestID
+		}
+		if opts.Headers != nil {
+			reqCfg.Headers = opts.Headers
+		}
+	} else if c.timeout > 0 {
+		reqCfg.Timeout = c.timeout
+	}
+
+	// Execute request
+	var stats CreditsStats
+	if err := c.internalHTTP.DoJSON(ctx, reqCfg, &stats); err != nil {
+		c.log(ctx, LogLevelError, "get credits stats request failed", "error", err)
+		return nil, err
+	}
+
+	c.log(ctx, LogLevelDebug, "get credits stats request succeeded",
+		"total_credits", stats.TotalCreditsUsed,
+		"total_requests", stats.TotalRequests)
+
+	return &stats, nil
 }
 
 // ParseResetDate parses the reset date string into a time.Time.
