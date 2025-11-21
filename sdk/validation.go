@@ -198,3 +198,170 @@ func validateModelID(modelID string) error {
 
 	return nil
 }
+
+// validateEmbeddingsRequest validates an EmbeddingsRequest before sending to the API.
+func validateEmbeddingsRequest(req *EmbeddingsRequest) error {
+	// Model is required
+	if req.Model == "" {
+		return &ValidationError{Field: "model", Message: "model is required"}
+	}
+
+	// Input is required
+	if req.Input == nil {
+		return &ValidationError{Field: "input", Message: "input is required"}
+	}
+
+	// Validate input type
+	switch v := req.Input.(type) {
+	case string:
+		if v == "" {
+			return &ValidationError{Field: "input", Message: "input cannot be empty"}
+		}
+	case []string:
+		if len(v) == 0 {
+			return &ValidationError{Field: "input", Message: "input array cannot be empty"}
+		}
+		for i, s := range v {
+			if s == "" {
+				return &ValidationError{
+					Field:   "input",
+					Message: fmt.Sprintf("input[%d] cannot be empty", i),
+				}
+			}
+		}
+	default:
+		return &ValidationError{
+			Field:   "input",
+			Message: "input must be a string or array of strings",
+		}
+	}
+
+	// Validate encoding format
+	if req.EncodingFormat != "" {
+		if req.EncodingFormat != "float" && req.EncodingFormat != "base64" {
+			return &ValidationError{
+				Field:   "encoding_format",
+				Message: "encoding_format must be 'float' or 'base64'",
+			}
+		}
+	}
+
+	// Validate dimensions
+	if req.Dimensions < 0 {
+		return &ValidationError{
+			Field:   "dimensions",
+			Message: "dimensions must be non-negative",
+		}
+	}
+
+	return nil
+}
+
+// validateAudioTranscriptionRequest validates an AudioTranscriptionRequest.
+func validateAudioTranscriptionRequest(req *AudioTranscriptionRequest) error {
+	if req.File == nil {
+		return &ValidationError{Field: "file", Message: "file is required"}
+	}
+	if req.Model == "" {
+		return &ValidationError{Field: "model", Message: "model is required"}
+	}
+	if req.Temperature != nil {
+		if *req.Temperature < 0 || *req.Temperature > 1 {
+			return &ValidationError{
+				Field:   "temperature",
+				Message: "temperature must be between 0 and 1",
+			}
+		}
+	}
+	return nil
+}
+
+// validateAudioTranslationRequest validates an AudioTranslationRequest.
+func validateAudioTranslationRequest(req *AudioTranslationRequest) error {
+	if req.File == nil {
+		return &ValidationError{Field: "file", Message: "file is required"}
+	}
+	if req.Model == "" {
+		return &ValidationError{Field: "model", Message: "model is required"}
+	}
+	if req.Temperature != nil {
+		if *req.Temperature < 0 || *req.Temperature > 1 {
+			return &ValidationError{
+				Field:   "temperature",
+				Message: "temperature must be between 0 and 1",
+			}
+		}
+	}
+	return nil
+}
+
+// validateAudioSpeechRequest validates an AudioSpeechRequest.
+func validateAudioSpeechRequest(req *AudioSpeechRequest) error {
+	if req.Model == "" {
+		return &ValidationError{Field: "model", Message: "model is required"}
+	}
+	if req.Input == "" {
+		return &ValidationError{Field: "input", Message: "input is required"}
+	}
+	if req.Voice == "" {
+		return &ValidationError{Field: "voice", Message: "voice is required"}
+	}
+	if req.Speed != nil {
+		if *req.Speed < 0.25 || *req.Speed > 4.0 {
+			return &ValidationError{
+				Field:   "speed",
+				Message: "speed must be between 0.25 and 4.0",
+			}
+		}
+	}
+	return nil
+}
+
+// validateImageGenerationRequest validates an ImageGenerationRequest.
+func validateImageGenerationRequest(req *ImageGenerationRequest) error {
+	if req.Prompt == "" {
+		return &ValidationError{Field: "prompt", Message: "prompt is required"}
+	}
+	return nil
+}
+
+// validateImageEditRequest validates an ImageEditRequest.
+func validateImageEditRequest(req *ImageEditRequest) error {
+	if req.Image == nil {
+		return &ValidationError{Field: "image", Message: "image is required"}
+	}
+	if req.Prompt == "" {
+		return &ValidationError{Field: "prompt", Message: "prompt is required"}
+	}
+	return nil
+}
+
+// validateImageVariationRequest validates an ImageVariationRequest.
+func validateImageVariationRequest(req *ImageVariationRequest) error {
+	if req.Image == nil {
+		return &ValidationError{Field: "image", Message: "image is required"}
+	}
+	return nil
+}
+
+// validateModerationRequest validates a ModerationRequest.
+func validateModerationRequest(req *ModerationRequest) error {
+	if req.Input == nil {
+		return &ValidationError{Field: "input", Message: "input is required"}
+	}
+	return nil
+}
+
+// validateBatchRequest validates a BatchRequest.
+func validateBatchRequest(req *BatchRequest) error {
+	if req.InputFileID == "" {
+		return &ValidationError{Field: "input_file_id", Message: "input_file_id is required"}
+	}
+	if req.Endpoint == "" {
+		return &ValidationError{Field: "endpoint", Message: "endpoint is required"}
+	}
+	if req.CompletionWindow == "" {
+		return &ValidationError{Field: "completion_window", Message: "completion_window is required"}
+	}
+	return nil
+}

@@ -268,3 +268,214 @@ func (c *Client) Messages(ctx context.Context, req MessagesRequest, opts *Reques
 
 	return &resp, nil
 }
+
+// CountTokens counts the number of tokens in a Messages request.
+//
+// This is useful for estimating costs before making a request.
+//
+// Example:
+//
+//	resp, err := client.CountTokens(ctx, zaguansdk.CountTokensRequest{
+//		Model: "anthropic/claude-3-5-sonnet-20241022",
+//		Messages: []zaguansdk.AnthropicMessage{
+//			{Role: "user", Content: "Hello, world!"},
+//		},
+//	}, nil)
+//	if err != nil {
+//		log.Fatal(err)
+//	}
+//	fmt.Printf("Input tokens: %d\n", resp.InputTokens)
+func (c *Client) CountTokens(ctx context.Context, req CountTokensRequest, opts *RequestOptions) (*CountTokensResponse, error) {
+	// Validate request
+	if req.Model == "" {
+		return nil, &ValidationError{Field: "model", Message: "model is required"}
+	}
+	if len(req.Messages) == 0 {
+		return nil, &ValidationError{Field: "messages", Message: "at least one message is required"}
+	}
+
+	c.log(ctx, LogLevelDebug, "counting tokens", "model", req.Model)
+
+	// Build request config
+	reqCfg := internal.RequestConfig{
+		Method: "POST",
+		Path:   "/v1/messages/count_tokens",
+		Body:   req,
+	}
+
+	// Apply request options
+	if opts != nil {
+		if opts.Timeout > 0 {
+			reqCfg.Timeout = opts.Timeout
+		}
+		if opts.RequestID != "" {
+			reqCfg.RequestID = opts.RequestID
+		}
+		if opts.Headers != nil {
+			reqCfg.Headers = opts.Headers
+		}
+	} else if c.timeout > 0 {
+		reqCfg.Timeout = c.timeout
+	}
+
+	// Execute request
+	var resp CountTokensResponse
+	if err := c.internalHTTP.DoJSON(ctx, reqCfg, &resp); err != nil {
+		c.log(ctx, LogLevelError, "count tokens request failed", "error", err)
+		return nil, err
+	}
+
+	c.log(ctx, LogLevelDebug, "count tokens request succeeded", "input_tokens", resp.InputTokens)
+
+	return &resp, nil
+}
+
+// CreateMessagesBatch creates a batch of Anthropic Messages requests.
+//
+// Example:
+//
+//	resp, err := client.CreateMessagesBatch(ctx, zaguansdk.MessagesBatchRequest{
+//		Requests: []zaguansdk.MessagesBatchItem{
+//			{
+//				CustomID: "request-1",
+//				Params: zaguansdk.MessagesRequest{
+//					Model:     "anthropic/claude-3-5-sonnet-20241022",
+//					MaxTokens: 1024,
+//					Messages: []zaguansdk.AnthropicMessage{
+//						{Role: "user", Content: "Hello!"},
+//					},
+//				},
+//			},
+//		},
+//	}, nil)
+func (c *Client) CreateMessagesBatch(ctx context.Context, req MessagesBatchRequest, opts *RequestOptions) (*MessagesBatchResponse, error) {
+	// Validate request
+	if len(req.Requests) == 0 {
+		return nil, &ValidationError{Field: "requests", Message: "at least one request is required"}
+	}
+
+	c.log(ctx, LogLevelDebug, "creating messages batch", "count", len(req.Requests))
+
+	// Build request config
+	reqCfg := internal.RequestConfig{
+		Method: "POST",
+		Path:   "/v1/messages/batches",
+		Body:   req,
+	}
+
+	// Apply request options
+	if opts != nil {
+		if opts.Timeout > 0 {
+			reqCfg.Timeout = opts.Timeout
+		}
+		if opts.RequestID != "" {
+			reqCfg.RequestID = opts.RequestID
+		}
+		if opts.Headers != nil {
+			reqCfg.Headers = opts.Headers
+		}
+	} else if c.timeout > 0 {
+		reqCfg.Timeout = c.timeout
+	}
+
+	// Execute request
+	var resp MessagesBatchResponse
+	if err := c.internalHTTP.DoJSON(ctx, reqCfg, &resp); err != nil {
+		c.log(ctx, LogLevelError, "create messages batch request failed", "error", err)
+		return nil, err
+	}
+
+	c.log(ctx, LogLevelDebug, "create messages batch request succeeded", "batch_id", resp.ID)
+
+	return &resp, nil
+}
+
+// GetMessagesBatch retrieves information about a Messages batch.
+//
+// Example:
+//
+//	batch, err := client.GetMessagesBatch(ctx, "msgbatch_abc123", nil)
+func (c *Client) GetMessagesBatch(ctx context.Context, batchID string, opts *RequestOptions) (*MessagesBatchResponse, error) {
+	if batchID == "" {
+		return nil, &ValidationError{Field: "batch_id", Message: "batch_id is required"}
+	}
+
+	c.log(ctx, LogLevelDebug, "getting messages batch", "batch_id", batchID)
+
+	// Build request config
+	reqCfg := internal.RequestConfig{
+		Method: "GET",
+		Path:   "/v1/messages/batches/" + batchID,
+	}
+
+	// Apply request options
+	if opts != nil {
+		if opts.Timeout > 0 {
+			reqCfg.Timeout = opts.Timeout
+		}
+		if opts.RequestID != "" {
+			reqCfg.RequestID = opts.RequestID
+		}
+		if opts.Headers != nil {
+			reqCfg.Headers = opts.Headers
+		}
+	} else if c.timeout > 0 {
+		reqCfg.Timeout = c.timeout
+	}
+
+	// Execute request
+	var resp MessagesBatchResponse
+	if err := c.internalHTTP.DoJSON(ctx, reqCfg, &resp); err != nil {
+		c.log(ctx, LogLevelError, "get messages batch request failed", "error", err)
+		return nil, err
+	}
+
+	c.log(ctx, LogLevelDebug, "get messages batch request succeeded", "batch_id", resp.ID)
+
+	return &resp, nil
+}
+
+// CancelMessagesBatch cancels a Messages batch that is in progress.
+//
+// Example:
+//
+//	batch, err := client.CancelMessagesBatch(ctx, "msgbatch_abc123", nil)
+func (c *Client) CancelMessagesBatch(ctx context.Context, batchID string, opts *RequestOptions) (*MessagesBatchResponse, error) {
+	if batchID == "" {
+		return nil, &ValidationError{Field: "batch_id", Message: "batch_id is required"}
+	}
+
+	c.log(ctx, LogLevelDebug, "cancelling messages batch", "batch_id", batchID)
+
+	// Build request config
+	reqCfg := internal.RequestConfig{
+		Method: "POST",
+		Path:   fmt.Sprintf("/v1/messages/batches/%s/cancel", batchID),
+	}
+
+	// Apply request options
+	if opts != nil {
+		if opts.Timeout > 0 {
+			reqCfg.Timeout = opts.Timeout
+		}
+		if opts.RequestID != "" {
+			reqCfg.RequestID = opts.RequestID
+		}
+		if opts.Headers != nil {
+			reqCfg.Headers = opts.Headers
+		}
+	} else if c.timeout > 0 {
+		reqCfg.Timeout = c.timeout
+	}
+
+	// Execute request
+	var resp MessagesBatchResponse
+	if err := c.internalHTTP.DoJSON(ctx, reqCfg, &resp); err != nil {
+		c.log(ctx, LogLevelError, "cancel messages batch request failed", "error", err)
+		return nil, err
+	}
+
+	c.log(ctx, LogLevelDebug, "cancel messages batch request succeeded", "batch_id", resp.ID)
+
+	return &resp, nil
+}
